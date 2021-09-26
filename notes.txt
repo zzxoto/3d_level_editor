@@ -1,0 +1,136 @@
+OPENGL tutorials/ray casting and picking objects: https://www.opengl-tutorial.org/
+Traditional japanese colors: https://en.wikipedia.org/wiki/Traditional_colors_of_Japan
+Ray triangle intersection: http://www.cs.cornell.edu/courses/cs465/2003fa/homeworks/raytri.pdf
+Ray direction from mouse position: https://antongerdelan.net/opengl/raycasting.html
+
+sscanf versus sprintf
+====================
+//sprintf
+char fpsBuffer[50];
+sprintf(fpsBuffer, "%.2f f/s; %.2f ms/frame; %d overslept\n", FPS, elapsedMSThisFrame, oversleptCount);
+platform_debugString(fpsBuffer);
+
+//sscanf
+int majorVersion; int minorVersion;
+sscanf(result.versionString, "%d.%d", &majorVersion, &minorVersion);  
+result.version = majorVersion * 100 + minorVersion * 10;
+
+IMGUI inputs
+============
+From https://github.com/ocornut/imgui/blob/master/docs/FAQ.md#q-how-can-i-tell-whether-to-dispatch-mousekeyboard-to-dear-imgui-or-my-application
+
+You can read the io.WantCaptureMouse, io.WantCaptureKeyboard and io.WantTextInput flags from the ImGuiIO structure.
+
+When io.WantCaptureMouse is set, you need to discard/hide the mouse inputs from your underlying application.
+When io.WantCaptureKeyboard is set, you need to discard/hide the keyboard inputs from your underlying application.
+Important: you should always pass your mouse/keyboard inputs to Dear ImGui, regardless of the value
+
+void MyLowLevelMouseButtonHandler(int button, bool down)
+{
+    // (1) ALWAYS forward mouse data to ImGui! This is automatic with default backends. With your own backend:
+    ImGuiIO& io = ImGui::GetIO();
+    io.MouseDown[button] = down;
+
+    // (2) ONLY forward mouse data to your underlying app/game.
+    if (!io.WantCaptureMouse)
+        my_game->HandleMouseData(...);
+}
+
+Note: Those flags are updated by ImGui::NewFrame(). However it is generally more correct and easier that you poll flags 
+from the previous frame, then submit your inputs, then call NewFrame(). If you attempt to do the opposite 
+(which is generally harder) you are likely going to submit your inputs after NewFrame(), and therefore too late.
+
+Notes from Ken Perlin
+======================
+In general, there are two major components to animation. One component is the subtlety of individual movement. The other is the sequence of what happens next. This week we look at each of these in turn.
+Ease curves
+
+First, let us consider individual movement. The most important thing to consider is that in nature, we rarely see things move at a constant velocity. Rather, objects tend to accelerate from rest and then decelerate again to rest when they are done with their movement. Animators know all about this, and integrate it into their workflow through the concept of ease curves. In its essence, an ease curve is an s-shaped curve that starts out with a velocity of zero, accelerates to a steady state velocity, and then at the end decelerates back to a velocity of zero. It is also sometimes called an "S curve", because of its shape. One simple example of an ease curve is the cubic equation 3t2 - 2t3, which has a value and derivative of 0.0 at its start and a value of 1.0 and derivative 0.0 at its end. In practice animators describe the different components of character movement, particularly rotation of limbs, as various overlapping ease curves. A good animator will overlap ease curves that describe, for example, head movement and the movement of various parts of the arms and legs, in such a way that those movements do not start and stop at the same time. Beginning animators will animate all of these things at the same time, whereas the really good animators will artfully begin and end those component ease curves at different times so that the character always seems alive and always seems to be in motion.
+
+Sequencing
+
+The second part of animation is sequencing, the idea that this happens then that happens then another thing happens. This is the basic component of storytelling. One way of effecting this through programming, which we briefly noted last week, is to design all of the animations around a sequence of onset curves, each of which is an ease curve. Any given action can be described by a variable which remains at zero until the onset of that action, then rises via and ease curve to a value of 1.0 over some period of time, and then remains at 1.0 for the duration of the animated narrative.
+
+Once you have such a sequence of control parameters, then you can use those control parameters to tell a story by using various mathematical expressions of those control parameters. In class we showed how you can build a narrative in this way.
+
+Rather than do this completely manually, it is useful to have a data structure and a way of specifying input to that data structure that makes it easy to describe when various events start and other events and in such a way that the animator does not need to worry too much about details of implementation, and rather can focus on the timing.
+
+On top of such a data structure we can build a user interface so that the animator can work visually, just adjusting timing parameters to control the with fine precision exactly when various movements start and stop. In this way we can allow visual designers to work visually while, as programmers who are taking on the scripting portion of an animation, we can work behind the scenes to help make things happen.
+
+In animation that is created by teams, this kind of workflow is very common. You will have at least one person who is an animator who works visually, and then at least one other person who is a programmer or scripter who builds the control mechanisms that the animator is controlling. In a sense this becomes like the computer graphic equivalent of puppetry
+
+Grid drawing code
+=================
+//-1.f,1.f       1.f,1.f
+// 
+// -1.f,-1.f     1.f,-1.f
+
+//Grid is always N X N
+//Grid of size N has N + 1 horizontal and vertical lines
+//Below is the gride of size 2 X 2
+//
+//---------------------------
+//|           |             | 
+//|           |             | 
+//|           |             | 
+//--------------------------- 
+//|           |             | 
+//|           |             | 
+//|           |             | 
+//--------------------------- 
+//
+const int gridSize = 8;
+
+worldPositionsCount = (gridSize + 1) * (gridSize + 1);
+worldPositions = (Vec3 *) malloc(worldPositionsCount * sizeof(Vec3));
+{
+  int arrayI = 0;
+  float x0 = -.5, y0 = .5;
+  for (int yi = 0; yi <= gridSize; yi++)
+  {
+    for (int xi = 0; xi <= gridSize; xi++)
+    {
+      float x = xi / (float) gridSize;
+      float y = yi / (float) gridSize;
+      worldPositions[arrayI++] = { x + x0, y + y0, 2.f};
+    }
+  }
+}
+
+//for every point in our grid, except for the points in top
+//most and right most edges, we wil produce 4 edges, or 8 vertices
+const int indexCount = 8 * gridSize * gridSize;
+short indices[indexCount];
+{
+  int arrayI = 0;
+  for (int yi = 0; yi < gridSize; yi++)
+  {
+    for (int xi = 0; xi < gridSize; xi++)
+    {
+      int row1 = yi * (gridSize + 1);
+      int row2 = (yi + 1) * (gridSize + 1);
+      
+      // C   D
+      //  ---
+      // |   |
+      //  ---
+      // A   B
+
+      //AB
+      indices[arrayI++] = row1 + xi;
+      indices[arrayI++] = row1 + xi + 1;
+
+      //AC
+      indices[arrayI++] = row1 + xi;
+      indices[arrayI++] = row2 + xi;
+
+      //DB
+      indices[arrayI++] = row2 + xi + 1;
+      indices[arrayI++] = row1 + xi + 1;
+
+      //DC
+      indices[arrayI++] = row2 + xi + 1;
+      indices[arrayI++] = row2 + xi;
+    }
+  }
+}
